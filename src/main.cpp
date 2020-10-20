@@ -3,18 +3,27 @@
 #include "Boundaries.h"
 #include <chrono>
 #include <random>
+#include <iostream>
 
 #define WIDTH 1280.0f
 #define HEIGHT 720.0f
 
 std::vector<Particle> initParticles();
-void addParticles(std::vector<Particle>& particles);
+
+void addParticles(std::vector<Particle> &particles);
+
 void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders);
-void draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders);
+
+void
+draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders);
+
 void calculateDensity(std::vector<Particle> &particles);
+
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles);
+
 void move(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders);
-void checkBounds(Particle& p);
+
+void checkBounds(Particle &p);
 
 float length(const Vec2f &vec) {
 	return std::sqrt(vec.x * vec.x + vec.y * vec.y);
@@ -34,7 +43,8 @@ float gaussian_kernel(Vec2f _r, float h) {
 float poly6_kernel(Vec2f _r, float h) {
 	float dist_sq = _r.x * _r.x + _r.y * _r.y;
 	float h_sq = h * h;
-	return h_sq < dist_sq || dist_sq < 0 ? 0.0f : 315.0f / (64.0f * PI * std::pow(h, 9.0f))	* pow(h_sq - dist_sq, 3.0f);
+	return h_sq < dist_sq || dist_sq < 0 ? 0.0f : 315.0f / (64.0f * PI * std::pow(h, 9.0f)) *
+												  std::pow(h_sq - dist_sq, 3.0f);
 }
 
 float kernel(Vec2f _r, float h) {
@@ -42,12 +52,12 @@ float kernel(Vec2f _r, float h) {
 }
 
 
-float gradKernel_pressure(Vec2f x, float h){
+float gradKernel_pressure(Vec2f x, float h) {
 	float r = std::sqrt(x.x * x.x + x.y * x.y);
 	return r == 0.0f ? 0.0f : 45.0f / (PI * std::pow(h, 6.0f)) * std::pow(h - r, 2.0f);
 }
 
-float laplaceKernel_viscosity(Vec2f x, float h){
+float laplaceKernel_viscosity(Vec2f x, float h) {
 	float r = std::sqrt(x.x * x.x + x.y * x.y);
 	return 45.0f / (PI * std::pow(h, 6.0f)) * (h - r);
 }
@@ -59,7 +69,7 @@ int main() {
 	sf::ContextSettings settings;
 	settings.antialiasingLevel = 8;
 	sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Fluid Simulation", sf::Style::Default, settings);
-	window.setFramerateLimit(30);
+	window.setFramerateLimit(60);
 
 	std::vector<Particle> particles = initParticles();
 	Boundaries boundaries;
@@ -82,9 +92,9 @@ int main() {
 
 				case sf::Event::KeyReleased:
 
-					if(event.key.code == sf::Keyboard::Enter){ //if enter is released, add more particles
+					if (event.key.code == sf::Keyboard::Enter) { //if enter is released, add more particles
 						addParticles(particles);
-					}else if(event.key.code == sf::Keyboard::Space){ //if space is released, restart
+					} else if (event.key.code == sf::Keyboard::Space) { //if space is released, restart
 						particles.clear();
 						particles = initParticles();
 					}
@@ -104,16 +114,16 @@ int main() {
 
 void calculateDensity(std::vector<Particle> &particles) {
 
-	for (auto& pi : particles){
+	for (auto &pi : particles) {
 		float dens = 0.0f;
-		for (auto& pj : particles){
+		for (auto &pj : particles) {
 
 			Vec2f distanceVector = pi.getCenterPos() - pj.getCenterPos();
 			float distance = length(distanceVector);
 
-			if (distance < Particle::effectRadius) {
+			if (distance < Particle::Data::effectRadius) {
 				auto mass = pj.getMass();
-				auto kernel_val = kernel(distanceVector, Particle::effectRadius);
+				auto kernel_val = kernel(distanceVector, Particle::Data::effectRadius);
 				float currDens = mass * kernel_val;
 				dens += currDens;
 			}
@@ -126,20 +136,20 @@ void calculateDensity(std::vector<Particle> &particles) {
 }
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
-	for (auto& pi : particles){
+	for (auto &pi : particles) {
 		Vec2f forceP;
 		Vec2f forceV;
 
-		for (auto& pj : particles){
+		for (auto &pj : particles) {
 			if (&pi != &pj) {
 
 				Vec2f distanceVector = pi.getCenterPos() - pj.getCenterPos();
 				float distance = length(distanceVector);
 
-				if (distance < Particle::effectRadius) {
+				if (distance < Particle::Data::effectRadius) {
 
 					Vec2f effect_normalized = -normalize(distanceVector);
-					auto kernelP = gradKernel_pressure(distanceVector, Particle::effectRadius);
+					auto kernelP = gradKernel_pressure(distanceVector, Particle::Data::effectRadius);
 
 					Vec2f currPForce = effect_normalized * pj.getMass() *
 									   (pi.getPressure() + pj.getPressure()) /
@@ -148,7 +158,7 @@ void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
 
 					Vec2f currVisc = viscosity * pi.getMass() * (pj.getVelocity() - pi.getVelocity()) /
 									 pj.getDensity() *
-									 laplaceKernel_viscosity(distanceVector, Particle::effectRadius);
+									 laplaceKernel_viscosity(distanceVector, Particle::Data::effectRadius);
 
 					forceP += currPForce;
 					forceV += currVisc;
@@ -156,7 +166,7 @@ void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
 			}
 		}
 
-		if(!std::isnan(forceP.x)) {
+		if (!std::isnan(forceP.x)) {
 			pi.setViscosityForce(forceV);
 			pi.setPressureForce(forceP);
 		}
@@ -165,7 +175,7 @@ void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
 
 void move(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders) {
 
-	for (auto& p : particles) {
+	for (auto &p : particles) {
 		auto currVel = p.getVelocity();
 		auto currVisF = p.getViscosityForce();
 		auto currPreF = p.getPressureForce();
@@ -178,11 +188,15 @@ void move(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleS
 	}
 }
 
-void checkBounds(Particle& p){
+auto wallThicknessLeft = 36.0f; //ezt át constants-ba
+auto wallThicknessRight = 45.0f; //ezt át constants-ba
+auto floorHeight = 36.0f; //me too thanks
+
+void checkBounds(Particle &p) {
 	auto velocity = p.getVelocity();
 	auto pos = p.getCenterPos();
 
-	if(pos.x < 36.0f){
+	if (pos.x < wallThicknessLeft) {
 
 		p.setVelocity(velocity.x * (-0.5f), velocity.y);
 		p.setCenterPos(36.0f, pos.y);
@@ -190,7 +204,7 @@ void checkBounds(Particle& p){
 		velocity = p.getVelocity();
 		pos = p.getCenterPos();
 
-	}else if(pos.x + 45.0f > WIDTH){
+	} else if (pos.x + wallThicknessRight > WIDTH) {
 
 		p.setVelocity(velocity.x * (-0.5f), velocity.y);
 		p.setCenterPos(WIDTH - 45.0f, pos.y);
@@ -199,8 +213,8 @@ void checkBounds(Particle& p){
 		pos = p.getCenterPos();
 	}
 
-	if(pos.y + 36.0f > HEIGHT){
-		p.setVelocity(Vec2f{velocity.x,velocity.y * -0.5f});
+	if (pos.y + floorHeight > HEIGHT) {
+		p.setVelocity(Vec2f{velocity.x, velocity.y * -0.5f});
 		p.setCenterPos(Vec2f{pos.x, HEIGHT - 36.0f});
 	}
 }
@@ -215,16 +229,22 @@ std::vector<Particle> initParticles() {
 	for (int i = 0; i < particle_cols_amount; i++) {
 		for (int j = 0; j < particle_rows_amount; j++) {
 			auto rand = dist(mt);
-			ret.emplace_back(45.0f * i + 30.0f + rand, 600.0f - (45.0f * j));
+			if (i == 9 && j == 0) {
+				ret.emplace_back(45.0f * i + 30.0f + rand, 600.0f - (45.0f * j), true);
+				std::cout << "pos of red: " << ret.size() - 1 << std::endl;
+			} else {
+				ret.emplace_back(45.0f * i + 30.0f + rand, 600.0f - (45.0f * j), false);
+			}
 		}
+
 	}
 
 	return ret;
 }
 
-void addParticles(std::vector<Particle>& particles){
-	for(int i = 0; i < 5; i++){
-		for(int j = 0; j < 5; j++){
+void addParticles(std::vector<Particle> &particles) {
+	for (int i = 0; i < 5; i++) {
+		for (int j = 0; j < 5; j++) {
 			particles.emplace_back(Vec2f{500.0f + i * 30.0f, 100.0f + j * 30.0f});
 		}
 	}
@@ -236,13 +256,14 @@ void update(float dt, std::vector<Particle> &particles, std::vector<sf::Rectangl
 	move(dt, particles, borders);
 }
 
-void draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders) {
+void
+draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders) {
 	window.clear();
 	for (const auto &p : particles) {
 		window.draw(p.getShape());
 	}
 
-	for(const auto& b : borders){
+	for (const auto &b : borders) {
 		window.draw(b);
 	}
 

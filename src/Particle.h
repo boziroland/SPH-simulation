@@ -7,23 +7,49 @@
 
 class Particle {
 private:
+
 	sf::CircleShape shape;
-	float radius;
-
-	float pressure;
-	Vec2f velocity;
-	float density;
-
-	Vec2f pressureForce;
-	Vec2f viscosityForce;
+//	float radius;
+//
+//	float pressure;
+//	Vec2f velocity;
+//	float density;
+//
+//	Vec2f pressureForce;
+//	Vec2f viscosityForce;
 
 public:
-	static float mass;
-	static float effectRadius;
+//	static float mass;
+//	static float effectRadius;
+
+	struct Data{
+
+		struct MyVec2f{
+			float x, y;
+		};
+
+		float radius;
+		float pressure;
+		MyVec2f velocity;
+		float density;
+
+		MyVec2f pressureForce;
+		MyVec2f viscosityForce;
+
+		static float mass;
+		static float effectRadius;
+	};
+
+	Data data{};
 
 public:
 	Particle(float, float);
-	Particle(Vec2f);
+	Particle(float, float, bool);
+	explicit Particle(Vec2f);
+
+	const Data &getData() const;
+
+	void setData(const Data &data);
 
 	Vec2f getCenterPos() const;
 	void setCenterPos(Vec2f);
