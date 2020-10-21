@@ -1,10 +1,10 @@
 #include "Particle.h"
 
-float Particle::Data::effectRadius = effect_radius;
-float Particle::Data::mass = mass_const;
-
 Particle::Particle(float x, float y) {
+	data = ParticleData{};
 	data.radius = particle_radius;
+	data.effectRadius = effect_radius;
+	data.mass = mass_const;
 
 	shape.setPosition(x, y);
 	shape.setRadius(data.radius);
@@ -16,23 +16,8 @@ Particle::Particle(float x, float y) {
 	data.density = 0.0f;
 }
 
-Particle::Particle(float x, float y, bool red) {
-	data.radius = particle_radius;
-
-	shape.setPosition(x, y);
-	shape.setRadius(data.radius);
-	if(red)
-		shape.setFillColor(sf::Color::Red);
-	else
-		shape.setFillColor(sf::Color::White);
-
-	data.pressure = 0.0f;
-	data.velocity.x = 0.0f;
-	data.velocity.y = 0.0f;
-	data.density = 0.0f;
-}
-
-Particle::Particle(Vec2f pos){
+Particle::Particle(Vec2f pos) {
+	data = ParticleData{};
 	data.radius = particle_radius;
 
 	shape.setPosition(pos);
@@ -42,7 +27,8 @@ Particle::Particle(Vec2f pos){
 	std::mt19937 mt(rd());
 	std::uniform_int_distribution<unsigned int> dist(0, 255);
 
-	shape.setFillColor(sf::Color{static_cast<sf::Uint8>(dist(mt)), static_cast<sf::Uint8>(dist(mt)), static_cast<sf::Uint8>(dist(mt))});
+	shape.setFillColor(sf::Color{static_cast<sf::Uint8>(dist(mt)), static_cast<sf::Uint8>(dist(mt)),
+								 static_cast<sf::Uint8>(dist(mt))});
 
 	data.pressure = 0.0f;
 	data.velocity.x = 0.0f;
@@ -54,7 +40,7 @@ sf::CircleShape &Particle::getShape() {
 	return shape;
 }
 
-const sf::CircleShape &Particle::getShape() const{
+const sf::CircleShape &Particle::getShape() const {
 	return shape;
 }
 
@@ -65,7 +51,7 @@ Vec2f Particle::getCenterPos() const {
 	return pos;
 }
 
-void Particle::setCenterPos(Vec2f pos){
+void Particle::setCenterPos(Vec2f pos) {
 	pos.x -= data.radius;
 	pos.y -= data.radius;
 	shape.setPosition(pos.x, pos.y);
@@ -130,10 +116,14 @@ void Particle::setCenterPos(float x, float y) {
 	shape.setPosition(x, y);
 }
 
-const Particle::Data &Particle::getData() const {
+void Particle::setShape(const sf::CircleShape &shape) {
+	Particle::shape = shape;
+}
+
+const ParticleData &Particle::getData() const {
 	return data;
 }
 
-void Particle::setData(const Particle::Data &data) {
+void Particle::setData(const ParticleData &data) {
 	Particle::data = data;
 }

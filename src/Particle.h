@@ -4,58 +4,23 @@
 #include <SFML/Graphics.hpp>
 #include "Constants.h"
 #include <random>
+#include "ParticleData.h"
 
 class Particle {
 private:
-
 	sf::CircleShape shape;
-//	float radius;
-//
-//	float pressure;
-//	Vec2f velocity;
-//	float density;
-//
-//	Vec2f pressureForce;
-//	Vec2f viscosityForce;
-
-public:
-//	static float mass;
-//	static float effectRadius;
-
-	struct Data{
-
-		struct MyVec2f{
-			float x, y;
-		};
-
-		float radius;
-		float pressure;
-		MyVec2f velocity;
-		float density;
-
-		MyVec2f pressureForce;
-		MyVec2f viscosityForce;
-
-		static float mass;
-		static float effectRadius;
-	};
-
-	Data data{};
+	ParticleData data;
 
 public:
 	Particle(float, float);
-	Particle(float, float, bool);
 	explicit Particle(Vec2f);
-
-	const Data &getData() const;
-
-	void setData(const Data &data);
 
 	Vec2f getCenterPos() const;
 	void setCenterPos(Vec2f);
 	void setCenterPos(float, float);
 	sf::CircleShape &getShape();
 	const sf::CircleShape &getShape() const;
+	void setShape(const sf::CircleShape &shape);
 	Vec2f getVelocity() const;
 	void setVelocity(Vec2f);
 	void setVelocity(float, float);
@@ -68,6 +33,8 @@ public:
 	void setPressureForce(Vec2f pressureForce);
 	Vec2f getViscosityForce() const;
 	void setViscosityForce(Vec2f viscosityForce);
+	const ParticleData &getData() const;
+	void setData(const ParticleData &data);
 };
 
 #endif //SPHSIM_PARTICLE_H

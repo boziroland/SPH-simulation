@@ -4,9 +4,13 @@
 #include <chrono>
 #include <random>
 #include <iostream>
+#include "opencl/OpenCLHelper.h"
+#include "opencl/Common.h"
 
 #define WIDTH 1280.0f
 #define HEIGHT 720.0f
+
+OpenCLHelper openClHelper{"..\\opencl\\programs.cl"};
 
 std::vector<Particle> initParticles();
 
@@ -18,6 +22,8 @@ void
 draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders);
 
 void calculateDensity(std::vector<Particle> &particles);
+
+void GPU_calculateDensity(std::vector<Particle>& particles);
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles);
 
@@ -75,6 +81,8 @@ int main() {
 	Boundaries boundaries;
 	auto borders = boundaries.getShapes();
 
+	GPU_calculateDensity(particles);
+
 	while (window.isOpen()) {
 
 		auto timeAtThisFrame = std::chrono::system_clock::now();
@@ -121,9 +129,9 @@ void calculateDensity(std::vector<Particle> &particles) {
 			Vec2f distanceVector = pi.getCenterPos() - pj.getCenterPos();
 			float distance = length(distanceVector);
 
-			if (distance < Particle::Data::effectRadius) {
+			if (distance < pi.getData().effectRadius) {
 				auto mass = pj.getMass();
-				auto kernel_val = kernel(distanceVector, Particle::Data::effectRadius);
+				auto kernel_val = kernel(distanceVector, pi.getData().effectRadius);
 				float currDens = mass * kernel_val;
 				dens += currDens;
 			}
@@ -133,6 +141,52 @@ void calculateDensity(std::vector<Particle> &particles) {
 		pi.setDensity(dens);
 		pi.setPressure(currPress);
 	}
+}
+
+void GPU_calculateDensity(std::vector<Particle>& particles){
+	int err = CL_SUCCESS;
+	int bufferSize = 10;
+
+	auto program = openClHelper.getProgram();
+	auto context = openClHelper.getContext();
+	auto devices = openClHelper.getDevices();
+
+	cl::Kernel kernel(program, "square", &err);
+	std::cout << getErrorString(err) << std::endl;
+	std::vector<int> hostBuffer;
+	for (size_t index = 0; index < bufferSize; ++index) {
+		hostBuffer.push_back(index);
+	}
+
+	cl::Buffer clInputBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(int) * bufferSize, NULL, &err);
+	cl::Buffer clResultBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(int) * bufferSize, NULL, &err);
+
+	cl::Event event;
+	cl::CommandQueue queue(context, devices[0], 0, &err);
+	std::cout << getErrorString(err) << std::endl;
+	err = queue.enqueueWriteBuffer(clInputBuffer, true, 0, sizeof(int) * bufferSize, hostBuffer.data());
+	std::cout << getErrorString(err) << std::endl;
+	err = kernel.setArg(0, clInputBuffer);
+	std::cout << getErrorString(err) << std::endl;
+	err = kernel.setArg(1, clResultBuffer);
+	std::cout << getErrorString(err) << std::endl;
+	err = queue.enqueueNDRangeKernel(kernel,
+									 cl::NullRange,
+									 cl::NDRange(bufferSize, 1),
+									 cl::NullRange,
+									 NULL,
+									 &event);
+	event.wait();
+	std::cout << getErrorString(err) << std::endl;
+
+	std::vector<int> resultBuffer(bufferSize);
+	err = queue.enqueueReadBuffer(clResultBuffer, true, 0, sizeof(int) * bufferSize, resultBuffer.data());
+	std::cout << getErrorString(err) << std::endl;
+
+	for (size_t index = 0; index < bufferSize; ++index) {
+		std::cout << resultBuffer[index] << std::endl;
+	}
+
 }
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
@@ -146,10 +200,10 @@ void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
 				Vec2f distanceVector = pi.getCenterPos() - pj.getCenterPos();
 				float distance = length(distanceVector);
 
-				if (distance < Particle::Data::effectRadius) {
+				if (distance < pi.getData().effectRadius) {
 
 					Vec2f effect_normalized = -normalize(distanceVector);
-					auto kernelP = gradKernel_pressure(distanceVector, Particle::Data::effectRadius);
+					auto kernelP = gradKernel_pressure(distanceVector, pi.getData().effectRadius);
 
 					Vec2f currPForce = effect_normalized * pj.getMass() *
 									   (pi.getPressure() + pj.getPressure()) /
@@ -158,7 +212,7 @@ void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
 
 					Vec2f currVisc = viscosity * pi.getMass() * (pj.getVelocity() - pi.getVelocity()) /
 									 pj.getDensity() *
-									 laplaceKernel_viscosity(distanceVector, Particle::Data::effectRadius);
+									 laplaceKernel_viscosity(distanceVector, pi.getData().effectRadius);
 
 					forceP += currPForce;
 					forceV += currVisc;
@@ -229,14 +283,8 @@ std::vector<Particle> initParticles() {
 	for (int i = 0; i < particle_cols_amount; i++) {
 		for (int j = 0; j < particle_rows_amount; j++) {
 			auto rand = dist(mt);
-			if (i == 9 && j == 0) {
-				ret.emplace_back(45.0f * i + 30.0f + rand, 600.0f - (45.0f * j), true);
-				std::cout << "pos of red: " << ret.size() - 1 << std::endl;
-			} else {
-				ret.emplace_back(45.0f * i + 30.0f + rand, 600.0f - (45.0f * j), false);
-			}
+			ret.emplace_back(45.0f * i + 30.0f + rand, 600.0f - (45.0f * j));
 		}
-
 	}
 
 	return ret;
