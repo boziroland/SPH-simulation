@@ -1,6 +1,8 @@
 #ifndef SPHSIM_CONSTANTS_H
 #define SPHSIM_CONSTANTS_H
 
+#include <SFML/System/Vector2.hpp>
+
 using Vec2f = sf::Vector2f;
 
 const float PI = 3.14159265359f;

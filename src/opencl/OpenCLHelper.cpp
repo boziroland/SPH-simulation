@@ -1,37 +1,64 @@
 #include <fstream>
 #include <sstream>
 #include "OpenCLHelper.h"
+#include "../Constants.h"
+
+//#define CL_HPP_ENABLE_EXCEPTIONS
 
 OpenCLHelper::OpenCLHelper(const std::string &file) {
 	createProgram(file);
 }
 
-void OpenCLHelper::createProgram(const std::string &file) {
-	int err = CL_SUCCESS;
-
-	std::vector<cl::Platform> platforms;
-	err = cl::Platform::get(&platforms);
-	std::cout << err << std::endl;
-	if (platforms.empty()) {
-		std::cout << "Unable to find suitable platform." << std::endl;
+auto OpenCLHelper::GetSource(std::string const& fileName){
+	std::ifstream f{ fileName };
+	if (!f.is_open())
+	{
+		std::cerr << "Cannot open file: " << fileName << '\n';
+		throw std::runtime_error{ "Cannot open file" };
 	}
+	return std::string{ std::istreambuf_iterator<char>{f}, std::istreambuf_iterator<char>{} };
+}
 
-	cl_context_properties properties[] =
-			{CL_CONTEXT_PLATFORM, (cl_context_properties) (platforms[0])(), 0};
-	cl::Context _context(CL_DEVICE_TYPE_GPU, properties);
+void OpenCLHelper::createProgram(const std::string &file) {
+//	try {
+		int err = CL_SUCCESS;
 
-	std::vector<cl::Device> _devices = _context.getInfo<CL_CONTEXT_DEVICES>();
+		std::vector<cl::Platform> platforms;
+		err = cl::Platform::get(&platforms);
+		std::cout << err << std::endl;
+		if (platforms.empty()) {
+			std::cout << "Unable to find suitable platform." << std::endl;
+		}
 
-	std::string programSource = FileToString(file);
-	cl::Program _program = cl::Program(_context, programSource, false, &err);
-	std::cout << err << std::endl;
-	err = _program.build(_devices);
-	std::cout << err << std::endl;
+		cl_context_properties properties[] =
+				{CL_CONTEXT_PLATFORM, (cl_context_properties) (platforms[0])(), 0};
+		cl::Context _context(CL_DEVICE_TYPE_GPU, properties);
 
-	this->program = _program;
-	this->context = program.getInfo<CL_PROGRAM_CONTEXT>();
-	this->devices = context.getInfo<CL_CONTEXT_DEVICES>();
-	this->device = devices.front();
+		std::vector<cl::Device> _devices = _context.getInfo<CL_CONTEXT_DEVICES>();
+		std::cout << "DEVICES : " << _devices.size() << std::endl;
+
+		auto programSource = GetSource(file);
+		cl::Program _program = cl::Program(_context, programSource, false, &err);
+		//getError(_program);
+		std::cout << err << std::endl;
+
+		err = _program.build(_devices);
+		//getError(_program);
+		std::cout << err << std::endl;
+
+		this->program = _program;
+		this->context = program.getInfo<CL_PROGRAM_CONTEXT>();
+		this->devices = context.getInfo<CL_CONTEXT_DEVICES>();
+		this->device = devices.front();
+
+		//getError(program);
+//	}catch(std::exception& e){
+//		std::cout << "exception thrown: " << e.what() << std::endl;
+//	}
+}
+
+void OpenCLHelper::getError(const cl::Program &_program) {
+	std::cout << _program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device) << std::endl;
 }
 
 std::string OpenCLHelper::FileToString(const std::string &path) {

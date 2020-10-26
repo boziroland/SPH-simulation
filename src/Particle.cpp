@@ -14,6 +14,9 @@ Particle::Particle(float x, float y) {
 	data.velocity.x = 0.0f;
 	data.velocity.y = 0.0f;
 	data.density = 0.0f;
+
+	data.position.x = x + data.radius;
+	data.position.y = y + data.radius;
 }
 
 Particle::Particle(Vec2f pos) {
@@ -34,6 +37,9 @@ Particle::Particle(Vec2f pos) {
 	data.velocity.x = 0.0f;
 	data.velocity.y = 0.0f;
 	data.density = 0.0f;
+
+	data.position.x = pos.x + data.radius;
+	data.position.y = pos.y + data.radius;
 }
 
 sf::CircleShape &Particle::getShape() {
@@ -110,6 +116,8 @@ void Particle::setVelocity(float x, float y) {
 }
 
 void Particle::setCenterPos(float x, float y) {
+	data.position.x = x;
+	data.position.y = y;
 	x -= data.radius;
 	y -= data.radius;
 

@@ -6,7 +6,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "cl.hpp"
+#include "opencl.hpp"
 
 #pragma warning( disable : 4996 )
 
