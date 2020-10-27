@@ -20,4 +20,8 @@ const float particle_radius = 10.0f;
 const float mass_const = 100.0f;
 const float effect_radius = 25.0f;
 
+const float wallThicknessLeft = 36.0f;
+const float wallThicknessRight = 45.0f;
+const float floorHeight = 36.0f;
+
 #endif //SPHSIM_CONSTANTS_H

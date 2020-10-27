@@ -25,7 +25,7 @@ draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std
 
 void calculateDensity(std::vector<Particle> &particles);
 
-void GPU_calculateDensity(std::vector<Particle> &particles);
+void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction);
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles);
 
@@ -58,7 +58,6 @@ float poly6_kernel(Vec2f _r, float h) {
 float kernel(Vec2f _r, float h) {
 	return poly6_kernel(_r, h);
 }
-
 
 float gradKernel_pressure(Vec2f x, float h) {
 	float r = std::sqrt(x.x * x.x + x.y * x.y);
@@ -115,6 +114,69 @@ int main() {
 	return 0;
 }
 
+void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction) {
+	int err = CL_SUCCESS;
+	int bufferSize = particles.size();
+
+	auto program = openClHelper.getProgram();
+	auto context = openClHelper.getContext();
+	auto devices = openClHelper.getDevices();
+
+	try {
+		cl::Kernel kernel(program, gpuFunction.c_str(), &err);
+
+		//std::cout << getErrorString(err) << std::endl;
+
+		std::vector<ParticleData> hostBuffer;
+		for (size_t i = 0; i < bufferSize; i++) {
+			hostBuffer.push_back(particles[i].getData());
+		}
+
+		cl::Buffer clInputBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(ParticleData) * bufferSize, NULL,
+											  &err);
+		// << getErrorString(err) << std::endl;
+		cl::Buffer clCountBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &err);
+		//std::cout << getErrorString(err) << std::endl;
+
+		cl::Event event;
+		cl::CommandQueue queue(context, devices[0], 0, &err);
+		err = queue.enqueueWriteBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, hostBuffer.data());
+		//std::cout << getErrorString(err) << std::endl;
+		err = queue.enqueueWriteBuffer(clCountBuffer, true, 0, sizeof(int), &bufferSize);
+		//std::cout << getErrorString(err) << std::endl;
+
+		err = kernel.setArg(0, clInputBuffer);
+		//std::cout << getErrorString(err) << std::endl;
+		err = kernel.setArg(1, clCountBuffer);
+		//std::cout << getErrorString(err) << std::endl;
+
+		err = queue.enqueueNDRangeKernel(kernel,
+										 cl::NullRange,
+										 cl::NDRange(bufferSize, 1),
+										 cl::NullRange,
+										 NULL,
+										 &event);
+		//std::cout << getErrorString(err) << std::endl;
+		event.wait();
+
+		std::vector<ParticleData> resultBuffer(bufferSize);
+		err = queue.enqueueReadBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, resultBuffer.data());
+		//std::cout << getErrorString(err) << std::endl;
+
+		for (size_t i = 0; i < bufferSize; i++) {
+			particles[i].setData(resultBuffer[i]);
+			particles[i].setCenterPos(particles[i].getData().position.x, particles[i].getData().position.y);
+		}
+	}
+	catch (cl::BuildError &e) {
+		std::cout << "build error" << std::endl;
+		std::cout << e.getBuildLog().front().second << std::endl;
+	}
+	catch (cl::Error &e) {
+		std::cout << e.what() << std::endl;
+	}
+}
+
 void calculateDensity(std::vector<Particle> &particles) {
 
 	for (auto &pi : particles) {
@@ -138,46 +200,12 @@ void calculateDensity(std::vector<Particle> &particles) {
 	}
 }
 
-void GPU_calculateDensity(std::vector<Particle> &particles) {
-	int err = CL_SUCCESS;
-	int bufferSize = particles.size();
+void GPU_calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
+	passDataToGPU(particles, "calculatePressureAndViscosityForce");
+}
 
-	auto program = openClHelper.getProgram();
-	auto context = openClHelper.getContext();
-	auto devices = openClHelper.getDevices();
-
-	cl::Kernel kernel(program, "calculateDensity", &err);
-
-	std::vector<ParticleData> hostBuffer;
-	for (size_t i = 0; i < bufferSize; i++) {
-		hostBuffer.push_back(particles[i].getData());
-	}
-
-	cl::Buffer clInputBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(ParticleData) * bufferSize, NULL, &err);
-	cl::Buffer clCountBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &err);
-
-	cl::Event event;
-	cl::CommandQueue queue(context, devices[0], 0, &err);
-	err = queue.enqueueWriteBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, hostBuffer.data());
-	err = queue.enqueueWriteBuffer(clCountBuffer, true, 0, sizeof(int), &bufferSize);
-
-	err = kernel.setArg(0, clInputBuffer);
-	err = kernel.setArg(1, clCountBuffer);
-
-	err = queue.enqueueNDRangeKernel(kernel,
-									 cl::NullRange,
-									 cl::NDRange(bufferSize, 1),
-									 cl::NullRange,
-									 NULL,
-									 &event);
-	event.wait();
-
-	std::vector<ParticleData> resultBuffer(bufferSize);
-	err = queue.enqueueReadBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, resultBuffer.data());
-
-	for (size_t i = 0; i < bufferSize; i++) {
-		particles[i].setData(resultBuffer[i]);
-	}
+void GPU_move(std::vector<Particle> &particles) {
+	passDataToGPU(particles, "move");
 }
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
@@ -233,10 +261,6 @@ void move(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleS
 	}
 }
 
-auto wallThicknessLeft = 36.0f; //ezt át constants-ba
-auto wallThicknessRight = 45.0f; //ezt át constants-ba
-auto floorHeight = 36.0f; //me too thanks
-
 void checkBounds(Particle &p) {
 	auto velocity = p.getVelocity();
 	auto pos = p.getCenterPos();
@@ -290,9 +314,10 @@ void addParticles(std::vector<Particle> &particles) {
 }
 
 void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders) {
-	GPU_calculateDensity(particles);
-	calculatePressureAndViscosityForce(particles);
-	move(dt, particles, borders);
+	passDataToGPU(particles, "update");
+//	passDataToGPU(particles, "calculateDensity");
+//	passDataToGPU(particles, "calculatePressureAndViscosityForce");
+//	passDataToGPU(particles, "move");
 }
 
 void

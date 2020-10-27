@@ -58,6 +58,8 @@ Vec2f Particle::getCenterPos() const {
 }
 
 void Particle::setCenterPos(Vec2f pos) {
+	data.position.x = pos.x;
+	data.position.y = pos.y;
 	pos.x -= data.radius;
 	pos.y -= data.radius;
 	shape.setPosition(pos.x, pos.y);

@@ -13,8 +13,8 @@ private:
 
 	void createProgram(const std::string &file);
 	static std::string FileToString(const std::string &path);
-	void getError(const cl::Program&);
-	static auto OpenCLHelper::GetSource(std::string const& fileName);
+	void getError(const cl::Program&, int err);
+	static auto GetSource(std::string const& fileName);
 public:
 	explicit OpenCLHelper(const std::string& file);
 	cl::Program& getProgram();
