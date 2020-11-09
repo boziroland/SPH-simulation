@@ -2,11 +2,13 @@
 #include <sstream>
 #include "OpenCLHelper.h"
 #include "../Constants.h"
+#include "../ParticleData.h"
+#include "../Particle.h"
 
 //#define CL_HPP_ENABLE_EXCEPTIONS
 
-OpenCLHelper::OpenCLHelper(const std::string &file) {
-	createProgram(file);
+OpenCLHelper::OpenCLHelper(const std::string &file, const std::vector<Particle>& hostBuffer) {
+	createProgram(file, hostBuffer);
 }
 
 auto OpenCLHelper::GetSource(std::string const &fileName) {
@@ -18,7 +20,7 @@ auto OpenCLHelper::GetSource(std::string const &fileName) {
 	return std::string{std::istreambuf_iterator<char>{f}, std::istreambuf_iterator<char>{}};
 }
 
-void OpenCLHelper::createProgram(const std::string &file) {
+void OpenCLHelper::createProgram(const std::string &file, const std::vector<Particle>& hostBuffer) {
 	try {
 		int err = CL_SUCCESS;
 
@@ -55,6 +57,33 @@ void OpenCLHelper::createProgram(const std::string &file) {
 		this->context = program.getInfo<CL_PROGRAM_CONTEXT>();
 		this->devices = context.getInfo<CL_CONTEXT_DEVICES>();
 		this->device = devices.front();
+
+		cl::Kernel kernelUpdate{program, "updateForces", &err};
+		cl::Kernel kernelMove{program, "updatePosition", &err};
+
+		int bufferSize = particle_cols_amount * particle_rows_amount;
+
+		cl::Buffer clInputBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(ParticleData) * bufferSize, NULL,
+											  &err);
+		// << getErrorString(err) << std::endl;
+		cl::Buffer clCountBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &err);
+		//std::cout << getErrorString(err) << std::endl;
+
+		err = kernelUpdate.setArg(0, clInputBuffer);
+		//std::cout << getErrorString(err) << std::endl;
+		err = kernelUpdate.setArg(1, clCountBuffer);
+
+		err = kernelMove.setArg(0, clInputBuffer);
+		//std::cout << getErrorString(err) << std::endl;
+		err = kernelMove.setArg(1, clCountBuffer);
+		//std::cout << getErrorString(err) << std::endl;
+
+
+		this->moveKernel = kernelMove;
+		this->updateKernel = kernelUpdate;
+		this->inputBuffer = clInputBuffer;
+		this->countBuffer = clCountBuffer;
+		//this->queue = myQueue;
 
 		getError(program, err);
 	} catch (cl::Error &e) {

@@ -12,20 +12,18 @@
 #define WIDTH 1280.0f
 #define HEIGHT 720.0f
 
-OpenCLHelper openClHelper{"F:\\Egyetem\\onlab\\SPHsim\\src\\opencl\\programs.cl"};
-
 std::vector<Particle> initParticles();
 
 void addParticles(std::vector<Particle> &particles);
 
-void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders);
+void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders, OpenCLHelper& openClHelper);
 
 void
 draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders);
 
 void calculateDensity(std::vector<Particle> &particles);
 
-void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction);
+void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction, OpenCLHelper& helper);
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles);
 
@@ -69,6 +67,8 @@ float laplaceKernel_viscosity(Vec2f x, float h) {
 	return 45.0f / (PI * std::pow(h, 6.0f)) * (h - r);
 }
 
+Boundaries boundaries;
+
 int main() {
 
 	sf::ContextSettings settings;
@@ -77,8 +77,9 @@ int main() {
 	window.setFramerateLimit(60);
 
 	std::vector<Particle> particles = initParticles();
-	Boundaries boundaries;
 	auto borders = boundaries.getShapes();
+
+	OpenCLHelper openClHelper{R"(F:\Egyetem\onlab\SPHsim\src\opencl\programs.cl)", particles};
 
 	while (window.isOpen()) {
 
@@ -107,60 +108,58 @@ int main() {
 			}
 		}
 
-		update(dtime, particles, borders);
+		update(dtime, particles, borders, openClHelper);
 		draw(window, particles, borders);
 	}
 
 	return 0;
 }
 
-void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction) {
+void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction, OpenCLHelper& helper) {
 	int err = CL_SUCCESS;
 	int bufferSize = particles.size();
 
-	auto program = openClHelper.getProgram();
-	auto context = openClHelper.getContext();
-	auto devices = openClHelper.getDevices();
+	auto program = helper.getProgram();
+	auto context = helper.getContext();
+	auto devices = helper.getDevices();
+	auto kernelUpdate = helper.updateKernel;
+	auto kernelMove = helper.moveKernel;
+	auto clInputBuffer = helper.inputBuffer;
+	auto clCountBuffer = helper.countBuffer;
 
 	try {
-		cl::Kernel kernel(program, gpuFunction.c_str(), &err);
-
-		//std::cout << getErrorString(err) << std::endl;
 
 		std::vector<ParticleData> hostBuffer;
 		for (size_t i = 0; i < bufferSize; i++) {
 			hostBuffer.push_back(particles[i].getData());
 		}
 
-		cl::Buffer clInputBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(ParticleData) * bufferSize, NULL,
-											  &err);
-		// << getErrorString(err) << std::endl;
-		cl::Buffer clCountBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &err);
-		//std::cout << getErrorString(err) << std::endl;
-
 		cl::Event event;
-		cl::CommandQueue queue(context, devices[0], 0, &err);
-		err = queue.enqueueWriteBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, hostBuffer.data());
+
+		cl::CommandQueue myQueue(context, devices[0], 0, &err);
+		err = myQueue.enqueueWriteBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, hostBuffer.data());
 		//std::cout << getErrorString(err) << std::endl;
-		err = queue.enqueueWriteBuffer(clCountBuffer, true, 0, sizeof(int), &bufferSize);
+		err = myQueue.enqueueWriteBuffer(clCountBuffer, true, 0, sizeof(int), &bufferSize);
 		//std::cout << getErrorString(err) << std::endl;
 
-		err = kernel.setArg(0, clInputBuffer);
-		//std::cout << getErrorString(err) << std::endl;
-		err = kernel.setArg(1, clCountBuffer);
-		//std::cout << getErrorString(err) << std::endl;
-
-		err = queue.enqueueNDRangeKernel(kernel,
+		err = myQueue.enqueueNDRangeKernel(kernelUpdate,
 										 cl::NullRange,
 										 cl::NDRange(bufferSize, 1),
+										 cl::NullRange, //egy workgroupba hány szál
+										 NULL,
+										 &event);
+
+		err = myQueue.enqueueNDRangeKernel(kernelMove,
 										 cl::NullRange,
+										 cl::NDRange(bufferSize, 1),
+										 cl::NullRange, //egy workgroupba hány szál
 										 NULL,
 										 &event);
 		//std::cout << getErrorString(err) << std::endl;
 		event.wait();
 
 		std::vector<ParticleData> resultBuffer(bufferSize);
-		err = queue.enqueueReadBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, resultBuffer.data());
+		err = myQueue.enqueueReadBuffer(clInputBuffer, true, 0, sizeof(ParticleData) * bufferSize, resultBuffer.data());
 		//std::cout << getErrorString(err) << std::endl;
 
 		for (size_t i = 0; i < bufferSize; i++) {
@@ -198,14 +197,6 @@ void calculateDensity(std::vector<Particle> &particles) {
 		pi.setDensity(dens);
 		pi.setPressure(currPress);
 	}
-}
-
-void GPU_calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
-	passDataToGPU(particles, "calculatePressureAndViscosityForce");
-}
-
-void GPU_move(std::vector<Particle> &particles) {
-	passDataToGPU(particles, "move");
 }
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
@@ -313,8 +304,8 @@ void addParticles(std::vector<Particle> &particles) {
 	}
 }
 
-void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders) {
-	passDataToGPU(particles, "update");
+void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders, OpenCLHelper& openClHelper) {
+	passDataToGPU(particles, "update", openClHelper);
 //	passDataToGPU(particles, "calculateDensity");
 //	passDataToGPU(particles, "calculatePressureAndViscosityForce");
 //	passDataToGPU(particles, "move");
@@ -326,6 +317,8 @@ draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std
 	for (const auto &p : particles) {
 		window.draw(p.getShape());
 	}
+
+	//window.draw(boundaries.getTriangle());
 
 	for (const auto &b : borders) {
 		window.draw(b);

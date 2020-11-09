@@ -155,11 +155,14 @@ __kernel void move(__global ParticleData* inputData, __global int* size){
     checkBounds(&inputData[id]);
 }
 
-__kernel void update(__global ParticleData* inputData, __global int* size){
+__kernel void updateForces(__global ParticleData* inputData, __global int* size){
     calculateDensity(inputData, size);
     barrier(CLK_GLOBAL_MEM_FENCE);
     calculatePressureAndViscosityForce(inputData, size);
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    move(inputData, size);
-    //barrier(CLK_GLOBAL_MEM_FENCE); ?
 }
+
+__kernel void updatePosition(__global ParticleData* inputData, __global int* size){
+    move(inputData, size); //ezt másik kernelhívásba
+}
+
+//egy rámpát ha bele kéne tenni az jó legyen
