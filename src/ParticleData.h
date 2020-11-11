@@ -12,7 +12,6 @@ struct ParticleData{
 	cl_float radius;
 	cl_float pressure;
 	cl_float density;
-	cl_float dummy;
 
 	MyVec2f velocity;
 	MyVec2f pressureForce;
@@ -21,8 +20,6 @@ struct ParticleData{
 
 	cl_float mass;
 	cl_float effectRadius;
-	cl_float dummy2;
-	cl_float dummy3;
 };
 
 #endif //SPHSIM_PARTICLEDATA_H

@@ -13,7 +13,7 @@ const float background_pressure = 1750.0f;
 
 const float viscosity = 600.0f;
 
-const int particle_rows_amount = 25;
+const int particle_rows_amount = 15;
 const int particle_cols_amount = 10;
 
 const float particle_radius = 10.0f;

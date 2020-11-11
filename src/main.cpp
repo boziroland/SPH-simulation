@@ -16,14 +16,15 @@ std::vector<Particle> initParticles();
 
 void addParticles(std::vector<Particle> &particles);
 
-void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders, OpenCLHelper& openClHelper);
+void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders,
+			OpenCLHelper &openClHelper);
 
 void
 draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders);
 
 void calculateDensity(std::vector<Particle> &particles);
 
-void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction, OpenCLHelper& helper);
+void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction, OpenCLHelper &helper);
 
 void calculatePressureAndViscosityForce(std::vector<Particle> &particles);
 
@@ -115,7 +116,7 @@ int main() {
 	return 0;
 }
 
-void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction, OpenCLHelper& helper) {
+void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction, OpenCLHelper &helper) {
 	int err = CL_SUCCESS;
 	int bufferSize = particles.size();
 
@@ -143,18 +144,18 @@ void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunct
 		//std::cout << getErrorString(err) << std::endl;
 
 		err = myQueue.enqueueNDRangeKernel(kernelUpdate,
-										 cl::NullRange,
-										 cl::NDRange(bufferSize, 1),
-										 cl::NullRange, //egy workgroupba hány szál
-										 NULL,
-										 &event);
+										   cl::NullRange,
+										   cl::NDRange(bufferSize, 1),
+										   cl::NullRange, //egy workgroupba hány szál
+										   NULL,
+										   &event);
 
 		err = myQueue.enqueueNDRangeKernel(kernelMove,
-										 cl::NullRange,
-										 cl::NDRange(bufferSize, 1),
-										 cl::NullRange, //egy workgroupba hány szál
-										 NULL,
-										 &event);
+										   cl::NullRange,
+										   cl::NDRange(bufferSize, 1),
+										   cl::NullRange, //egy workgroupba hány szál
+										   NULL,
+										   &event);
 		//std::cout << getErrorString(err) << std::endl;
 		event.wait();
 
@@ -273,10 +274,10 @@ void checkBounds(Particle &p) {
 		pos = p.getCenterPos();
 	}
 
-	if (pos.y + floorHeight > HEIGHT) {
-		p.setVelocity(Vec2f{velocity.x, velocity.y * -0.5f});
-		p.setCenterPos(Vec2f{pos.x, HEIGHT - 36.0f});
-	}
+//	if (pos.y + floorHeight > HEIGHT) {
+//		p.setVelocity(Vec2f{velocity.x, velocity.y * -0.5f});
+//		p.setCenterPos(Vec2f{pos.x, HEIGHT - 36.0f});
+//	}
 }
 
 std::vector<Particle> initParticles() {
@@ -289,7 +290,7 @@ std::vector<Particle> initParticles() {
 	for (int i = 0; i < particle_cols_amount; i++) {
 		for (int j = 0; j < particle_rows_amount; j++) {
 			auto rand = dist(mt);
-			ret.emplace_back(45.0f * i + 30.0f + rand, 300.0f - (45.0f * j));
+			ret.emplace_back(45.0f * i + 500.0f + rand, 200.0f - (45.0f * j));
 		}
 	}
 
@@ -304,11 +305,9 @@ void addParticles(std::vector<Particle> &particles) {
 	}
 }
 
-void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders, OpenCLHelper& openClHelper) {
+void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders,
+			OpenCLHelper &openClHelper) {
 	passDataToGPU(particles, "update", openClHelper);
-//	passDataToGPU(particles, "calculateDensity");
-//	passDataToGPU(particles, "calculatePressureAndViscosityForce");
-//	passDataToGPU(particles, "move");
 }
 
 void
@@ -318,7 +317,7 @@ draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std
 		window.draw(p.getShape());
 	}
 
-	//window.draw(boundaries.getTriangle());
+	window.draw(boundaries.getTriangle());
 
 	for (const auto &b : borders) {
 		window.draw(b);

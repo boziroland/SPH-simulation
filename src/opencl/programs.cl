@@ -4,10 +4,9 @@ typedef struct MyVec2f{
 } MyVec2f;
 
 typedef struct ParticleData{
-	int radius;
+	float radius;
     float pressure;
     float density;
-    float dummy;
 
     MyVec2f velocity;
     MyVec2f pressureForce;
@@ -16,8 +15,6 @@ typedef struct ParticleData{
 
     float mass;
     float effectRadius;
-    float dummy2;
-    float dummy3;
 } ParticleData;
 
 #define WIDTH 1280.0f
@@ -58,6 +55,67 @@ float laplaceKernel_viscosity(float2 vec, float h){
     return 45.0f / (PI * pow(h, 6.0f)) * (h - r);
 }
 
+bool intersects(float circleRadius, float2 circleCenter, float2 point1, float2 point2){
+
+    MyVec2f a = { .x = point1.x - circleCenter.x, .y = point1.y - circleCenter.y};
+    MyVec2f b = { .x = point2.x - circleCenter.x, .y = point2.y - circleCenter.y};
+
+    float a0 = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y);
+    float b0 = 2 * (a.x * (b.x - a.x) + a.y * (b.y - a.y));
+    float c0 = a.x * a.x + a.y * a.y - (circleRadius + 0.0f) * (circleRadius + 0.0f);
+    float discriminant = b0 * b0 - 4 * a0 * c0;
+
+    if(discriminant <= 0)
+        return false;
+
+    float sqrtDiscriminant = sqrt(discriminant);
+    float t1 = (-b0 + sqrtDiscriminant) / (2 * a0);
+    float t2 = (-b0 - sqrtDiscriminant) / (2 * a0);
+
+    return (0 < t1 && t1 < 1) || (0 < t2 && t2 < 1);
+}
+
+float2 getNormal(float2 point1, float2 point2){
+    float2 vector = point2 - point1;
+    return normalize((float2)(-vector.y, vector.x));
+}
+
+void checkParticleTriangleIntersection(__global ParticleData* p){
+    float circleRadius = p->radius;
+    float2 circleCenter = (float2)(p->position.x, p->position.y);
+    float2 p0 = (float2)(320, 720);
+    float2 p1 = (float2)(640, 360);
+    float2 p2 = (float2)(960, 720);
+
+    float2 velocity = (float2)(p->velocity.x, p->velocity.y);
+    float2 pos = (float2)(p->position.x, p->position.y);
+    float bounceOffset = 60.0f;
+
+    float2 normal, newVelocity;
+    if(intersects(circleRadius, circleCenter, p0, p1)){
+        normal = getNormal(p0, p1);
+        newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
+        p->velocity.x = newVelocity.x * 0.8f;
+        p->velocity.y = newVelocity.y * 0.8f;
+        p->position.x = pos.x - circleRadius / bounceOffset;
+        p->position.y = pos.y - circleRadius / bounceOffset;
+    }else if(intersects(circleRadius, circleCenter, p1, p2)){
+		normal = getNormal(p1, p2);
+		newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
+        p->velocity.x = newVelocity.x * 0.8f;
+        p->velocity.y = newVelocity.y * 0.8f;
+        p->position.x = pos.x + circleRadius / bounceOffset;
+        p->position.y = pos.y - circleRadius / bounceOffset;
+    }else if(pos.y + 36.0f >= HEIGHT){
+        normal = getNormal((float2)(0.0f, 0.0f), (float2)(1.0f, 0.0f));
+        newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
+        p->velocity.x = newVelocity.x;
+        p->velocity.y = newVelocity.y * 0.5f;
+        p->position.x = pos.x;
+        p->position.y = HEIGHT - 36.0f;
+    }
+}
+
 void checkBounds(__global ParticleData* p){
     float2 velocity = (float2)(p->velocity.x, p->velocity.y);
     float2 pos = (float2)(p->position.x, p->position.y);
@@ -72,10 +130,12 @@ void checkBounds(__global ParticleData* p){
 
     }
 
-    if(pos.y + floorHeight > HEIGHT){
-        p->velocity.y = velocity.y * (-0.5f);
-        p->position.y = HEIGHT - floorHeight;
-    }
+    checkParticleTriangleIntersection(p);
+
+    //if(pos.y + floorHeight > HEIGHT){
+    //    p->velocity.y = velocity.y * (-0.5f);
+    //    p->position.y = HEIGHT - floorHeight;
+    //}
 }
 
 __kernel void calculateDensity(__global ParticleData* inputData, __global int* size){
