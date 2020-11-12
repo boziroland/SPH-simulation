@@ -7,7 +7,7 @@
 
 //#define CL_HPP_ENABLE_EXCEPTIONS
 
-OpenCLHelper::OpenCLHelper(const std::string &file, const std::vector<Particle>& hostBuffer) {
+OpenCLHelper::OpenCLHelper(const std::string &file, const std::vector<Particle> &hostBuffer) {
 	createProgram(file, hostBuffer);
 }
 
@@ -20,7 +20,7 @@ auto OpenCLHelper::GetSource(std::string const &fileName) {
 	return std::string{std::istreambuf_iterator<char>{f}, std::istreambuf_iterator<char>{}};
 }
 
-void OpenCLHelper::createProgram(const std::string &file, const std::vector<Particle>& hostBuffer) {
+void OpenCLHelper::createProgram(const std::string &file, const std::vector<Particle> &hostBuffer) {
 	try {
 		int err = CL_SUCCESS;
 
@@ -29,7 +29,7 @@ void OpenCLHelper::createProgram(const std::string &file, const std::vector<Part
 		std::cout << err << std::endl;
 		if (platforms.empty()) {
 			std::cout << "Unable to find suitable platform." << std::endl;
-		}else{
+		} else {
 			std::cout << "Platform count : " << platforms.size() << std::endl;
 		}
 
@@ -39,7 +39,7 @@ void OpenCLHelper::createProgram(const std::string &file, const std::vector<Part
 
 		std::vector<cl::Device> _devices = _context.getInfo<CL_CONTEXT_DEVICES>();
 		std::cout << "DEVICES : " << _devices.size() << std::endl;
-		for(const auto& dev : _devices) {
+		for (const auto &dev : _devices) {
 			std::cout << "NAME : " << dev.getInfo<CL_DEVICE_NAME>() << std::endl;
 		}
 
@@ -89,20 +89,6 @@ void OpenCLHelper::createProgram(const std::string &file, const std::vector<Part
 	} catch (cl::Error &e) {
 		std::cout << "cl error was thrown" << std::endl;
 		std::cout << e.what() << " : " << e.err();
-//		if (e.err() == CL_BUILD_PROGRAM_FAILURE) {
-//			for (cl::Device dev : devices) {
-//				// Check the build status
-//				cl_build_status status = program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(dev);
-//				//if (status != CL_BUILD_ERROR)
-//				//	continue;
-//
-//				// Get the build log
-//				std::string name = dev.getInfo<CL_DEVICE_NAME>();
-//				std::string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dev);
-//				std::cerr << "Build log for " << name << ":" << std::endl
-//						  << buildlog << std::endl;
-//			}
-//		}
 	}
 }
 

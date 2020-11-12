@@ -25,6 +25,8 @@ __constant float background_pressure = 1750.0f;
 __constant float default_fluid_density = 1250.0f;
 __constant float viscosity = 600.0f;
 __constant float2 gravity = (float2)(0.0f, 15000.0f * 9.81f);
+__constant float non_horizontal_bounce_constant = 0.95f;
+
 
 __constant float wallThicknessLeft = 36.0f;
 __constant float wallThicknessRight = 45.0f;
@@ -95,15 +97,19 @@ void checkParticleTriangleIntersection(__global ParticleData* p){
     if(intersects(circleRadius, circleCenter, p0, p1)){
         normal = getNormal(p0, p1);
         newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
-        p->velocity.x = newVelocity.x * 0.8f;
-        p->velocity.y = newVelocity.y * 0.8f;
+        p->velocity.x = newVelocity.x * non_horizontal_bounce_constant;
+        p->velocity.y = newVelocity.y * non_horizontal_bounce_constant;
         p->position.x = pos.x - circleRadius / bounceOffset;
         p->position.y = pos.y - circleRadius / bounceOffset;
-    }else if(intersects(circleRadius, circleCenter, p1, p2)){
+        pos.x = p->position.x;
+        pos.y = p->position.y;
+    }
+
+    if(intersects(circleRadius, circleCenter, p1, p2)){
 		normal = getNormal(p1, p2);
 		newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
-        p->velocity.x = newVelocity.x * 0.8f;
-        p->velocity.y = newVelocity.y * 0.8f;
+        p->velocity.x = newVelocity.x * non_horizontal_bounce_constant;
+        p->velocity.y = newVelocity.y * non_horizontal_bounce_constant;
         p->position.x = pos.x + circleRadius / bounceOffset;
         p->position.y = pos.y - circleRadius / bounceOffset;
     }else if(pos.y + 36.0f >= HEIGHT){
@@ -131,11 +137,6 @@ void checkBounds(__global ParticleData* p){
     }
 
     checkParticleTriangleIntersection(p);
-
-    //if(pos.y + floorHeight > HEIGHT){
-    //    p->velocity.y = velocity.y * (-0.5f);
-    //    p->position.y = HEIGHT - floorHeight;
-    //}
 }
 
 __kernel void calculateDensity(__global ParticleData* inputData, __global int* size){
@@ -222,7 +223,5 @@ __kernel void updateForces(__global ParticleData* inputData, __global int* size)
 }
 
 __kernel void updatePosition(__global ParticleData* inputData, __global int* size){
-    move(inputData, size); //ezt másik kernelhívásba
+    move(inputData, size);
 }
-
-//egy rámpát ha bele kéne tenni az jó legyen

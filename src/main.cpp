@@ -290,7 +290,7 @@ std::vector<Particle> initParticles() {
 	for (int i = 0; i < particle_cols_amount; i++) {
 		for (int j = 0; j < particle_rows_amount; j++) {
 			auto rand = dist(mt);
-			ret.emplace_back(45.0f * i + 500.0f + rand, 200.0f - (45.0f * j));
+			ret.emplace_back(45.0f * i + 430.0f + rand, 200.0f - (45.0f * j));
 		}
 	}
 
