@@ -5,7 +5,7 @@
 #include <random>
 #include <iostream>
 #include "opencl/OpenCLHelper.h"
-#include "opencl/Common.h"
+#include "Timer.h"
 
 //#define CL_HPP_ENABLE_EXCEPTIONS
 
@@ -307,8 +307,8 @@ void addParticles(std::vector<Particle> &particles) {
 	}
 }
 
-void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders,
-			OpenCLHelper &openClHelper) {
+void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders, OpenCLHelper &openClHelper) {
+	Timer timer;
 	passDataToGPU(particles, "update", openClHelper);
 }
 
