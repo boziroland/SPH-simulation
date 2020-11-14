@@ -12,6 +12,8 @@
 #define WIDTH 1280.0f
 #define HEIGHT 720.0f
 
+const bool triangleCollision = false;
+
 std::vector<Particle> initParticles();
 
 void addParticles(std::vector<Particle> &particles);
@@ -317,7 +319,8 @@ draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std
 		window.draw(p.getShape());
 	}
 
-	window.draw(boundaries.getTriangle());
+	if(triangleCollision)
+		window.draw(boundaries.getTriangle());
 
 	for (const auto &b : borders) {
 		window.draw(b);

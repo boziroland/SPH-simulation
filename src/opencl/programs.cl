@@ -20,13 +20,14 @@ typedef struct ParticleData{
 #define WIDTH 1280.0f
 #define HEIGHT 720.0f
 
+__constant bool triangleCollision = false;
+
 __constant float PI = 3.14159265359f;
 __constant float background_pressure = 1750.0f;
 __constant float default_fluid_density = 1250.0f;
 __constant float viscosity = 600.0f;
-__constant float2 gravity = (float2)(0.0f, 15000.0f * 9.81f);
+__constant float2 gravity = (float2)(0.0f, 30000.0f * 9.81f);
 __constant float non_horizontal_bounce_constant = 0.95f;
-
 
 __constant float wallThicknessLeft = 36.0f;
 __constant float wallThicknessRight = 45.0f;
@@ -92,33 +93,45 @@ void checkParticleTriangleIntersection(__global ParticleData* p){
     float2 velocity = (float2)(p->velocity.x, p->velocity.y);
     float2 pos = (float2)(p->position.x, p->position.y);
     float bounceOffset = 60.0f;
-
     float2 normal, newVelocity;
-    if(intersects(circleRadius, circleCenter, p0, p1)){
-        normal = getNormal(p0, p1);
-        newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
-        p->velocity.x = newVelocity.x * non_horizontal_bounce_constant;
-        p->velocity.y = newVelocity.y * non_horizontal_bounce_constant;
-        p->position.x = pos.x - circleRadius / bounceOffset;
-        p->position.y = pos.y - circleRadius / bounceOffset;
-        pos.x = p->position.x;
-        pos.y = p->position.y;
-    }
+    if(triangleCollision){
 
-    if(intersects(circleRadius, circleCenter, p1, p2)){
-		normal = getNormal(p1, p2);
-		newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
-        p->velocity.x = newVelocity.x * non_horizontal_bounce_constant;
-        p->velocity.y = newVelocity.y * non_horizontal_bounce_constant;
-        p->position.x = pos.x + circleRadius / bounceOffset;
-        p->position.y = pos.y - circleRadius / bounceOffset;
-    }else if(pos.y + 36.0f >= HEIGHT){
-        normal = getNormal((float2)(0.0f, 0.0f), (float2)(1.0f, 0.0f));
-        newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
-        p->velocity.x = newVelocity.x;
-        p->velocity.y = newVelocity.y * 0.5f;
-        p->position.x = pos.x;
-        p->position.y = HEIGHT - 36.0f;
+        if(intersects(circleRadius, circleCenter, p0, p1)){
+            normal = getNormal(p0, p1);
+            newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
+            p->velocity.x = newVelocity.x * non_horizontal_bounce_constant;
+            p->velocity.y = newVelocity.y * non_horizontal_bounce_constant;
+            p->position.x = pos.x - circleRadius / bounceOffset;
+            p->position.y = pos.y - circleRadius / bounceOffset;
+            pos.x = p->position.x;
+            pos.y = p->position.y;
+        }
+
+        if(intersects(circleRadius, circleCenter, p1, p2)){
+            normal = getNormal(p1, p2);
+            newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
+            p->velocity.x = newVelocity.x * non_horizontal_bounce_constant;
+            p->velocity.y = newVelocity.y * non_horizontal_bounce_constant;
+            p->position.x = pos.x + circleRadius / bounceOffset;
+            p->position.y = pos.y - circleRadius / bounceOffset;
+        }else if(pos.y + 36.0f >= HEIGHT){
+            normal = getNormal((float2)(0.0f, 0.0f), (float2)(1.0f, 0.0f));
+            newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
+            p->velocity.x = newVelocity.x;
+            p->velocity.y = newVelocity.y * 0.5f;
+            p->position.x = pos.x;
+            p->position.y = HEIGHT - 36.0f;
+        }
+
+    }else{
+        if(pos.y + 36.0f >= HEIGHT){
+            normal = getNormal((float2)(0.0f, 0.0f), (float2)(1.0f, 0.0f));
+            newVelocity = velocity - 2 * (dot(velocity, normal)) * normal;
+            p->velocity.x = newVelocity.x;
+            p->velocity.y = newVelocity.y * 0.5f;
+            p->position.x = pos.x;
+            p->position.y = HEIGHT - 36.0f;
+        }
     }
 }
 
@@ -198,22 +211,58 @@ __kernel void calculatePressureAndViscosityForce(__global ParticleData* inputDat
 
 __kernel void move(__global ParticleData* inputData, __global int* size){
     int id = get_global_id(0);
-    float2 currVel = (float2)(inputData[id].velocity.x, inputData[id].velocity.y);
-    float2 currVisF = (float2)(inputData[id].viscosityForce.x, inputData[id].viscosityForce.y);
-    float2 currPreF = (float2)(inputData[id].pressureForce.x, inputData[id].pressureForce.y);
-    float2 currPos = (float2)(inputData[id].position.x, inputData[id].position.y);
-    float currDens = inputData[id].density;
+    if(!triangleCollision){
+        if(id < 40){
+            if(id < 20){
+            inputData[id].velocity.x = 0.0f;
+            inputData[id].velocity.y = 0.0f;
 
-    float2 newVel = currVel + (dt * (currVisF + currPreF + gravity * currDens) / currDens);
-    float2 newPos = currPos + dt * newVel;
+            inputData[id].position.x = 345.0f + id * 15.0f;
+            inputData[id].position.y = 710.0f - id * 15.0f - id * 2.0f;
 
-    inputData[id].velocity.x = newVel.x;
-    inputData[id].velocity.y = newVel.y;
+            }else{
+                inputData[id].velocity.x = 0.0f;
+                inputData[id].velocity.y = 0.0f;
 
-    inputData[id].position.x = newPos.x;
-    inputData[id].position.y = newPos.y;
+                inputData[id].position.x = 935.0f - (40 - 1 - id) * 15.0f;
+                inputData[id].position.y = 710.0f - (40 - 1 - id) * 15.0f - (40 - 1 - id) * 2.0f;
+            }
+        }else{
+            float2 currVel = (float2)(inputData[id].velocity.x, inputData[id].velocity.y);
+            float2 currVisF = (float2)(inputData[id].viscosityForce.x, inputData[id].viscosityForce.y);
+            float2 currPreF = (float2)(inputData[id].pressureForce.x, inputData[id].pressureForce.y);
+            float2 currPos = (float2)(inputData[id].position.x, inputData[id].position.y);
+            float currDens = inputData[id].density;
 
-    checkBounds(&inputData[id]);
+            float2 newVel = currVel + (dt * (currVisF + currPreF + gravity * currDens) / currDens);
+            float2 newPos = currPos + dt * newVel;
+
+            inputData[id].velocity.x = newVel.x;
+            inputData[id].velocity.y = newVel.y;
+
+            inputData[id].position.x = newPos.x;
+            inputData[id].position.y = newPos.y;
+
+            checkBounds(&inputData[id]);
+            }
+    }else{
+            float2 currVel = (float2)(inputData[id].velocity.x, inputData[id].velocity.y);
+            float2 currVisF = (float2)(inputData[id].viscosityForce.x, inputData[id].viscosityForce.y);
+            float2 currPreF = (float2)(inputData[id].pressureForce.x, inputData[id].pressureForce.y);
+            float2 currPos = (float2)(inputData[id].position.x, inputData[id].position.y);
+            float currDens = inputData[id].density;
+
+            float2 newVel = currVel + (dt * (currVisF + currPreF + gravity * currDens) / currDens);
+            float2 newPos = currPos + dt * newVel;
+
+            inputData[id].velocity.x = newVel.x;
+            inputData[id].velocity.y = newVel.y;
+
+            inputData[id].position.x = newPos.x;
+            inputData[id].position.y = newPos.y;
+
+            checkBounds(&inputData[id]);
+    }
 }
 
 __kernel void updateForces(__global ParticleData* inputData, __global int* size){
