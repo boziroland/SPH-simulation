@@ -7,7 +7,7 @@
 #include "opencl/OpenCLHelper.h"
 #include "Timer.h"
 
-//#define CL_HPP_ENABLE_EXCEPTIONS
+const std::string fileToSaveTo = "../data/safety.csv";
 
 #define WIDTH 1280.0f
 #define HEIGHT 720.0f
@@ -24,11 +24,7 @@ void update(float dt, std::vector<Particle> &particles, std::vector<sf::Rectangl
 void
 draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std::vector<sf::RectangleShape> &borders);
 
-void calculateDensity(std::vector<Particle> &particles);
-
 void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunction, OpenCLHelper &helper);
-
-void calculatePressureAndViscosityForce(std::vector<Particle> &particles);
 
 void move(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders);
 
@@ -36,38 +32,6 @@ void checkBounds(Particle &p);
 
 float length(const Vec2f &vec) {
 	return std::sqrt(vec.x * vec.x + vec.y * vec.y);
-}
-
-Vec2f normalize(const Vec2f &vec) {
-	float len = length(vec);
-	return Vec2f{vec.x / len, vec.y / len};
-}
-
-float gaussian_kernel(Vec2f _r, float h) {
-	float r = std::sqrt(_r.x * _r.x + _r.y * _r.y);
-	float alpha = 1 / ((std::sqrt(PI) * h) * (std::sqrt(PI) * h));
-	return alpha * std::exp(-((r / h) * (r / h)));
-}
-
-float poly6_kernel(Vec2f _r, float h) {
-	float dist_sq = _r.x * _r.x + _r.y * _r.y;
-	float h_sq = h * h;
-	return h_sq < dist_sq || dist_sq < 0 ? 0.0f : 315.0f / (64.0f * PI * std::pow(h, 9.0f)) *
-												  std::pow(h_sq - dist_sq, 3.0f);
-}
-
-float kernel(Vec2f _r, float h) {
-	return poly6_kernel(_r, h);
-}
-
-float gradKernel_pressure(Vec2f x, float h) {
-	float r = std::sqrt(x.x * x.x + x.y * x.y);
-	return r == 0.0f ? 0.0f : 45.0f / (PI * std::pow(h, 6.0f)) * std::pow(h - r, 2.0f);
-}
-
-float laplaceKernel_viscosity(Vec2f x, float h) {
-	float r = std::sqrt(x.x * x.x + x.y * x.y);
-	return 45.0f / (PI * std::pow(h, 6.0f)) * (h - r);
 }
 
 Boundaries boundaries;
@@ -83,7 +47,7 @@ int main() {
 	auto borders = boundaries.getShapes();
 
 	OpenCLHelper openClHelper{R"(F:\Egyetem\onlab\SPHsim\src\opencl\programs.cl)", particles};
-
+	int frames = 0;
 	while (window.isOpen()) {
 
 		float dtime = 0.0005f;
@@ -100,6 +64,7 @@ int main() {
 
 					if (event.key.code == sf::Keyboard::Enter) { //if enter is released, add more particles
 						addParticles(particles);
+						//std::cout << "FRAMES: " << frames << std::endl;
 					} else if (event.key.code == sf::Keyboard::Space) { //if space is released, restart
 						particles.clear();
 						particles = initParticles();
@@ -113,7 +78,14 @@ int main() {
 
 		update(dtime, particles, borders, openClHelper);
 		draw(window, particles, borders);
+		frames++;
+		if(frames >= 1000)
+			break;
 	}
+
+	std::ofstream file(fileToSaveTo);
+	for(const auto& e : Timer::frameFrameTimeMap)
+		file << e.first << ";" << e.second << "\n";
 
 	return 0;
 }
@@ -179,67 +151,6 @@ void passDataToGPU(std::vector<Particle> &particles, const std::string &gpuFunct
 	}
 }
 
-void calculateDensity(std::vector<Particle> &particles) {
-
-	for (auto &pi : particles) {
-		float dens = 0.0f;
-		for (auto &pj : particles) {
-
-			Vec2f distanceVector = pi.getCenterPos() - pj.getCenterPos();
-			float distance = length(distanceVector);
-
-			if (distance < pi.getData().effectRadius) {
-				auto mass = pj.getMass();
-				auto kernel_val = kernel(distanceVector, pi.getData().effectRadius);
-				float currDens = mass * kernel_val;
-				dens += currDens;
-			}
-		}
-		auto currPress = background_pressure * (dens - default_fluid_density);
-
-		pi.setDensity(dens);
-		pi.setPressure(currPress);
-	}
-}
-
-void calculatePressureAndViscosityForce(std::vector<Particle> &particles) {
-	for (auto &pi : particles) {
-		Vec2f forceP;
-		Vec2f forceV;
-
-		for (auto &pj : particles) {
-			if (&pi != &pj) {
-
-				Vec2f distanceVector = pi.getCenterPos() - pj.getCenterPos();
-				float distance = length(distanceVector);
-
-				if (distance < pi.getData().effectRadius) {
-
-					Vec2f effect_normalized = -normalize(distanceVector);
-					auto kernelP = gradKernel_pressure(distanceVector, pi.getData().effectRadius);
-
-					Vec2f currPForce = effect_normalized * pj.getMass() *
-									   (pi.getPressure() + pj.getPressure()) /
-									   (pj.getDensity() * 2.0f) *
-									   kernelP;
-
-					Vec2f currVisc = viscosity * pi.getMass() * (pj.getVelocity() - pi.getVelocity()) /
-									 pj.getDensity() *
-									 laplaceKernel_viscosity(distanceVector, pi.getData().effectRadius);
-
-					forceP += currPForce;
-					forceV += currVisc;
-				}
-			}
-		}
-
-		if (!std::isnan(forceP.x)) {
-			pi.setViscosityForce(forceV);
-			pi.setPressureForce(forceP);
-		}
-	}
-}
-
 void move(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders) {
 
 	for (auto &p : particles) {
@@ -275,11 +186,6 @@ void checkBounds(Particle &p) {
 		velocity = p.getVelocity();
 		pos = p.getCenterPos();
 	}
-
-//	if (pos.y + floorHeight > HEIGHT) {
-//		p.setVelocity(Vec2f{velocity.x, velocity.y * -0.5f});
-//		p.setCenterPos(Vec2f{pos.x, HEIGHT - 36.0f});
-//	}
 }
 
 std::vector<Particle> initParticles() {
@@ -309,7 +215,7 @@ void addParticles(std::vector<Particle> &particles) {
 
 void update(float dt, std::vector<Particle> &particles, std::vector<sf::RectangleShape> &borders, OpenCLHelper &openClHelper) {
 	Timer timer;
-	passDataToGPU(particles, "update", openClHelper);
+	passDataToGPU(particles, "THISPARAMISDEPRECATED", openClHelper);
 }
 
 void
@@ -319,8 +225,9 @@ draw(sf::RenderWindow &window, const std::vector<Particle> &particles, const std
 		window.draw(p.getShape());
 	}
 
-	if(triangleCollision)
+	if(triangleCollision) {
 		window.draw(boundaries.getTriangle());
+	}
 
 	for (const auto &b : borders) {
 		window.draw(b);

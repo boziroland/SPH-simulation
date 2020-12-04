@@ -23,10 +23,10 @@ typedef struct ParticleData{
 __constant bool triangleCollision = false;
 
 __constant float PI = 3.14159265359f;
-__constant float background_pressure = 1750.0f;
-__constant float default_fluid_density = 1250.0f;
-__constant float viscosity = 600.0f;
-__constant float2 gravity = (float2)(0.0f, 30000.0f * 9.81f);
+__constant float background_pressure = 1750.0f / 2.0f;
+__constant float default_fluid_density = 1250.0f / 2.0f;
+__constant float viscosity = 600.0f / 2.0f;
+__constant float2 gravity = (float2)(0.0f, 30000.0f * 9.81f / 30000.0f);
 __constant float non_horizontal_bounce_constant = 0.95f;
 
 __constant float wallThicknessLeft = 36.0f;
@@ -234,7 +234,7 @@ __kernel void move(__global ParticleData* inputData, __global int* size){
             float2 currPos = (float2)(inputData[id].position.x, inputData[id].position.y);
             float currDens = inputData[id].density;
 
-            float2 newVel = currVel + (dt * (currVisF + currPreF + gravity * currDens) / currDens);
+            float2 newVel = currVel + (dt * (currVisF + currPreF + gravity * inputData[id].mass) / currDens);
             float2 newPos = currPos + dt * newVel;
 
             inputData[id].velocity.x = newVel.x;
@@ -252,7 +252,7 @@ __kernel void move(__global ParticleData* inputData, __global int* size){
             float2 currPos = (float2)(inputData[id].position.x, inputData[id].position.y);
             float currDens = inputData[id].density;
 
-            float2 newVel = currVel + (dt * (currVisF + currPreF + gravity * currDens) / currDens);
+            float2 newVel = currVel + (dt * (currVisF + currPreF + gravity * inputData[id].mass) / currDens);
             float2 newPos = currPos + dt * newVel;
 
             inputData[id].velocity.x = newVel.x;

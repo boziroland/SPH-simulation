@@ -3,20 +3,20 @@
 
 #include <chrono>
 #include <iostream>
+#include <fstream>
+
+using namespace std::chrono;
 
 class Timer{
-	std::chrono::time_point<std::chrono::high_resolution_clock> startPoint;
+	inline static int frame = 0;
+	time_point<high_resolution_clock> start;
 public:
-	inline Timer(){startPoint = std::chrono::high_resolution_clock::now(); }
-	inline ~Timer(){
-		auto endPoint = std::chrono::high_resolution_clock::now();
-		auto start = std::chrono::time_point_cast<std::chrono::microseconds>(startPoint).time_since_epoch().count();
-		auto end = std::chrono::time_point_cast<std::chrono::microseconds>(endPoint).time_since_epoch().count();
-
-		auto duration = end - start;
-		float ms = duration * 0.001f;
-
-		std::cout << duration << " us (" << ms << " ms)\n";
+	inline static std::map<int, float> frameFrameTimeMap;
+	Timer() : start(high_resolution_clock::now()) {}
+	~Timer(){
+		auto end = high_resolution_clock::now();
+		auto duration = duration_cast<microseconds>(end - start).count();
+		frameFrameTimeMap.insert({frame++, duration});
 	}
 };
 
